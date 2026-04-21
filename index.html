@@ -1,0 +1,958 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>2026년 월별 선적 일정 대시보드</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;800&family=Noto+Sans+KR:wght@400;500;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-base: #f0f9ff;
+      --bg-surface: #ffffff;
+      --primary: #0284c7;
+      --primary-hover: #0369a1;
+      --secondary: #38bdf8;
+      --accent: #06b6d4;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --glass-bg: rgba(255, 255, 255, 0.96);
+      --glass-border: rgba(2, 132, 199, 0.2);
+      --glass-shadow: 0 10px 30px -5px rgba(2, 132, 199, 0.1);
+
+      /* 담당자 색상 팔레트 */
+      --color-WK:  #0284c7;
+      --color-TK:  #059669;
+      --color-CHK: #d97706;
+      --color-SM:  #7c3aed;
+      --color-SH:  #dc2626;
+      --color-default: #64748b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: 'Outfit', 'Noto Sans KR', sans-serif;
+      background-color: var(--bg-base);
+      background-image:
+        radial-gradient(circle at 10% 20%, rgba(56, 189, 248, 0.08) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(6, 182, 212, 0.08) 0%, transparent 40%);
+      color: var(--text-main);
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 50px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 50px;
+      animation: fadeInDown 0.6s ease-out;
+    }
+
+    .title {
+      font-size: 2.8rem;
+      font-weight: 800;
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      letter-spacing: -1px;
+    }
+
+    /* ── Dropzone ── */
+    .dropzone-container {
+      width: 100%;
+      max-width: 700px;
+      margin: 0 auto;
+    }
+
+    .dropzone {
+      display: block;           /* block 명시 — 렌더링 분리 버그 방지 */
+      background: var(--glass-bg);
+      border: 3px dashed var(--secondary);
+      border-radius: 24px;
+      padding: 60px 30px;
+      text-align: center;
+      cursor: pointer;
+      box-shadow: var(--glass-shadow);
+      transition: all 0.3s ease;
+      user-select: none;
+    }
+
+    .dropzone:hover, .dropzone.dragover {
+      border-color: var(--primary);
+      background: #ffffff;
+      transform: translateY(-5px);
+      box-shadow: 0 15px 35px rgba(2, 132, 199, 0.15);
+    }
+
+    .dropzone-icon { margin-bottom: 20px; }
+
+    .dropzone-text {
+      font-size: 1.35rem;
+      font-weight: 700;
+      margin-bottom: 10px;
+      color: var(--primary);
+    }
+
+    .dropzone-subtext {
+      font-size: 1rem;
+      color: var(--text-muted);
+    }
+
+    /* ── 저장된 데이터 힌트 (업로드 화면) ── */
+    .cached-hint {
+      margin-top: 14px;
+      padding: 14px 20px;
+      background: rgba(2, 132, 199, 0.05);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      animation: fadeIn 0.4s ease-out;
+    }
+
+    .cached-hint-info {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      min-width: 0;
+    }
+
+    .cached-hint-info svg { flex-shrink: 0; color: var(--accent); }
+
+    .cached-hint-name {
+      font-weight: 700;
+      color: var(--primary);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 260px;
+    }
+
+    .cached-hint-date { font-size: 0.8rem; white-space: nowrap; }
+
+    .load-cached-btn {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border: none;
+      border-radius: 20px;
+      padding: 9px 20px;
+      color: white;
+      font-size: 0.9rem;
+      font-weight: 700;
+      cursor: pointer;
+      font-family: inherit;
+      transition: transform 0.2s, box-shadow 0.2s;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+
+    .load-cached-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 16px rgba(2, 132, 199, 0.3);
+    }
+
+    /* ── Dashboard ── */
+    .dashboard-wrapper { width: 100%; }
+
+    .dashboard-wrapper.fade-in { animation: fadeIn 0.5s ease-out; }
+
+    /* 저장 정보 표시줄 */
+    .save-info-bar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 12px;
+      padding: 8px 18px;
+      background: rgba(2, 132, 199, 0.05);
+      border: 1px solid var(--glass-border);
+      border-radius: 12px;
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .save-info-bar svg { flex-shrink: 0; }
+
+    .save-info-filename {
+      font-weight: 700;
+      color: var(--primary-hover);
+    }
+
+    .save-info-divider {
+      margin: 0 4px;
+      opacity: 0.4;
+    }
+
+    .controls-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      background: var(--glass-bg);
+      padding: 15px 30px;
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 4px 15px rgba(0,0,0,0.03);
+      gap: 16px;
+      flex-wrap: wrap;
+    }
+
+    .month-selector {
+      display: flex;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .month-btn {
+      background: #e0f2fe;
+      border: none;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.2rem;
+      color: var(--primary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .month-btn:hover:not(:disabled) {
+      background: var(--primary);
+      color: white;
+      transform: scale(1.1);
+    }
+
+    .month-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    .current-month-display {
+      font-size: 1.6rem;
+      font-weight: 800;
+      color: var(--primary);
+      min-width: 130px;
+      text-align: center;
+    }
+
+    .month-stats {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      font-weight: 500;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .month-stats-count {
+      font-size: 1.1rem;
+      font-weight: 800;
+      color: var(--primary);
+    }
+
+    .manager-legend {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 0.8rem;
+      color: var(--text-muted);
+      font-weight: 600;
+    }
+
+    .legend-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .re-upload-btn {
+      background: linear-gradient(135deg, var(--primary), var(--accent));
+      border: none;
+      border-radius: 30px;
+      padding: 12px 28px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      font-size: 1rem;
+      font-family: inherit;
+      transition: transform 0.2s, box-shadow 0.2s;
+      white-space: nowrap;
+    }
+
+    .re-upload-btn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 8px 20px rgba(6, 182, 212, 0.3);
+    }
+
+    /* ── Calendar ── */
+    .calendar-container {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 15px;
+      width: 100%;
+    }
+
+    .calendar-header-cell {
+      text-align: center;
+      font-weight: 700;
+      font-size: 1.1rem;
+      padding: 15px;
+      color: var(--primary);
+      background: rgba(255, 255, 255, 0.8);
+      border-radius: 12px;
+      border: 1px solid var(--glass-border);
+    }
+
+    .calendar-header-cell:nth-child(1) { color: #ef4444; }
+    .calendar-header-cell:nth-child(7) { color: #3b82f6; }
+
+    .calendar-cell {
+      background: var(--glass-bg);
+      border: 1px solid var(--glass-border);
+      border-radius: 16px;
+      min-height: 140px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+
+    .calendar-cell:not(.empty):hover {
+      transform: translateY(-3px);
+      box-shadow: var(--glass-shadow);
+      border-color: var(--secondary);
+    }
+
+    .calendar-cell.empty {
+      background: transparent;
+      border: 1px dashed rgba(2, 132, 199, 0.1);
+      box-shadow: none;
+    }
+
+    .calendar-cell.today {
+      border: 2px solid var(--primary);
+      background: #e0f2fe;
+    }
+
+    .calendar-cell.sunday  .cell-date-num { color: #ef4444; }
+    .calendar-cell.saturday .cell-date-num { color: #3b82f6; }
+
+    .cell-date {
+      font-size: 1.2rem;
+      font-weight: 700;
+      margin-bottom: 8px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .cell-date-num { color: var(--text-main); }
+
+    .cell-date-meta {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .today-badge {
+      font-size: 0.75rem;
+      color: #fff;
+      background: var(--primary);
+      padding: 4px 8px;
+      border-radius: 12px;
+      font-weight: bold;
+      letter-spacing: 0.5px;
+    }
+
+    .count-badge {
+      font-size: 0.7rem;
+      color: #fff;
+      background: var(--accent);
+      padding: 2px 7px;
+      border-radius: 10px;
+      font-weight: 700;
+      min-width: 22px;
+      text-align: center;
+    }
+
+    .cell-content {
+      flex-grow: 1;
+      overflow-y: auto;
+      max-height: 180px;
+      padding-right: 4px;
+    }
+
+    .cell-content::-webkit-scrollbar { width: 5px; }
+    .cell-content::-webkit-scrollbar-track { background: rgba(0,0,0,0.03); border-radius: 10px; }
+    .cell-content::-webkit-scrollbar-thumb { background: #bae6fd; border-radius: 10px; }
+
+    .shipment-item {
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      border-left: 4px solid var(--secondary);
+      border-radius: 8px;
+      padding: 10px 12px;
+      margin-bottom: 10px;
+      transition: background 0.2s;
+      animation: slideIn 0.3s ease-out forwards;
+      opacity: 0;
+      cursor: default;
+    }
+
+    .shipment-item:last-child { margin-bottom: 0; }
+    .shipment-item:hover { background: #f8fafc; }
+
+    .ship-po {
+      font-size: 0.95rem;
+      font-weight: 800;
+      color: var(--primary-hover);
+      margin-bottom: 4px;
+      word-break: break-all;
+    }
+
+    .ship-enduser {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+      display: flex;
+      align-items: flex-start;
+      margin-top: 2px;
+    }
+
+    /* ── Toast 알림 ── */
+    .toast {
+      position: fixed;
+      bottom: 60px;
+      right: 20px;
+      background: var(--primary);
+      color: white;
+      font-weight: 600;
+      font-size: 0.9rem;
+      padding: 12px 20px;
+      border-radius: 16px;
+      box-shadow: 0 8px 24px rgba(2, 132, 199, 0.3);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      opacity: 0;
+      transform: translateY(10px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+      z-index: 1000;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Version Label */
+    .version-label {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: var(--glass-bg);
+      color: var(--primary);
+      font-weight: 700;
+      padding: 8px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--glass-border);
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+    }
+
+    @keyframes fadeInDown {
+      from { opacity: 0; transform: translateY(-20px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-5px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="header">
+      <h1 class="title">2026년 월별 선적 일정 대시보드</h1>
+    </div>
+
+    <!-- 업로드 폼 -->
+    <div class="dropzone-container" id="dropzoneContainer">
+      <!--
+        ✅ v1.3.1 구조 변경: <label> → <div> + JS click 이벤트
+        label(inline)이 내부 div(block)를 포함하면 border가 두 조각으로
+        분리 렌더링되는 HTML 스펙 이슈를 근본적으로 해결.
+      -->
+      <div class="dropzone" id="dropZone">
+        <div class="dropzone-icon">
+          <svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+            <polyline points="17 8 12 3 7 8"></polyline>
+            <line x1="12" y1="3" x2="12" y2="15"></line>
+          </svg>
+        </div>
+        <div class="dropzone-text">CSV 파일을 드래그하거나 여기를 클릭하세요.</div>
+        <div class="dropzone-subtext">2026 ENG 오더 리스트 (PO#, End User, 담당자, 선적일 항목 필요)</div>
+      </div>
+      <!-- input은 dropzone 외부에 분리 배치 -->
+      <input type="file" id="fileInput" accept=".csv" style="display:none" />
+
+      <!-- 저장된 데이터 힌트 — JS로 제어 -->
+      <div class="cached-hint" id="cachedHint" style="display:none">
+        <div class="cached-hint-info">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+            <polyline points="17 21 17 13 7 13 7 21"></polyline>
+            <polyline points="7 3 7 8 15 8"></polyline>
+          </svg>
+          <div>
+            <div class="cached-hint-name" id="cachedFileName">—</div>
+            <div class="cached-hint-date" id="cachedFileDate">—</div>
+          </div>
+        </div>
+        <button class="load-cached-btn" onclick="loadCachedData()">저장 데이터 열기</button>
+      </div>
+    </div>
+
+    <!-- 대시보드 화면 -->
+    <!-- ⚠️ style="display:none" — FOUC 방지: 인라인 스타일로 파싱 즉시 숨김 처리 -->
+    <div class="dashboard-wrapper" id="dashboardWrapper" style="display:none">
+
+      <!-- 저장 정보 표시줄 -->
+      <div class="save-info-bar" id="saveInfoBar" style="display:none">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"></path>
+          <polyline points="17 21 17 13 7 13 7 21"></polyline>
+          <polyline points="7 3 7 8 15 8"></polyline>
+        </svg>
+        <span>자동 저장된 데이터</span>
+        <span class="save-info-divider">·</span>
+        <span class="save-info-filename" id="saveInfoName">—</span>
+        <span class="save-info-divider">·</span>
+        <span id="saveInfoDate">—</span>
+      </div>
+
+      <div class="controls-row">
+        <div class="month-selector">
+          <button class="month-btn" id="prevMonthBtn" onclick="changeMonth(-1)" title="이전 달">◀</button>
+          <div class="current-month-display" id="monthDisplay">2026년 4월</div>
+          <button class="month-btn" id="nextMonthBtn" onclick="changeMonth(1)" title="다음 달">▶</button>
+        </div>
+
+        <div class="month-stats" id="monthStats">
+          이번 달 선적 <span class="month-stats-count" id="monthCount">0</span>건
+        </div>
+
+        <div class="manager-legend" id="managerLegend"></div>
+
+        <div class="btn-group">
+          <button class="re-upload-btn" onclick="resetApp()">새 파일 업로드</button>
+        </div>
+      </div>
+
+      <div class="calendar-container" id="calendarGrid"></div>
+    </div>
+  </div>
+
+  <!-- Toast 알림 -->
+  <div class="toast" id="toast">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"></polyline>
+    </svg>
+    <span id="toastMsg">저장 완료</span>
+  </div>
+
+  <div class="version-label">v1.3.4</div>
+
+  <script>
+    // ─── Constants ────────────────────────────────────────────
+    const TARGET_YEAR    = 2026;
+    const WEEKS          = ['일', '월', '화', '수', '목', '금', '토'];
+    const STORAGE_KEY    = 'shipDashboard_v1'; // localStorage 키
+
+    const MANAGER_COLOR_MAP = {
+      // ── ENG 부서 ──────────────────────────────
+      'WK':  '#0284c7',  // 파랑
+      'CHK': '#d97706',  // 앰버
+      'SM':  '#7c3aed',  // 보라
+      'TK':  '#059669',  // 에메랄드
+      'CHY': '#e11d48',  // 로즈
+      'HJ':  '#0891b2',  // 시안
+      'YK':  '#65a30d',  // 라임
+      'KW':  '#f97316',  // 오렌지
+      // ── T&M 부서 ──────────────────────────────
+      'AD':  '#6366f1',  // 인디고
+      'BS':  '#14b8a6',  // 틸
+      'MS':  '#db2777',  // 핑크
+      'DK':  '#b45309',  // 다크 앰버
+      'SI':  '#9333ea',  // 바이올렛
+      'TU':  '#0f766e',  // 다크 틸
+      'SS':  '#dc2626',  // 레드
+    };
+    const DEFAULT_COLOR = '#94a3b8';
+
+    function getManagerColor(manager) {
+      if (!manager) return DEFAULT_COLOR;
+      return MANAGER_COLOR_MAP[manager.trim().toUpperCase()] || DEFAULT_COLOR;
+    }
+
+    // ─── State ────────────────────────────────────────────────
+    let globalData    = [];
+    let currentMonth  = new Date().getMonth();
+
+    // ─── DOM ──────────────────────────────────────────────────
+    const dropZone          = document.getElementById('dropZone');
+    const fileInput         = document.getElementById('fileInput');
+    const dropzoneContainer = document.getElementById('dropzoneContainer');
+    const dashboardWrapper  = document.getElementById('dashboardWrapper');
+    const calendarGrid      = document.getElementById('calendarGrid');
+    const monthDisplay      = document.getElementById('monthDisplay');
+    const monthCount        = document.getElementById('monthCount');
+    const managerLegend     = document.getElementById('managerLegend');
+    const prevMonthBtn      = document.getElementById('prevMonthBtn');
+    const nextMonthBtn      = document.getElementById('nextMonthBtn');
+    const cachedHint        = document.getElementById('cachedHint');
+    const cachedFileName    = document.getElementById('cachedFileName');
+    const cachedFileDate    = document.getElementById('cachedFileDate');
+    const saveInfoBar       = document.getElementById('saveInfoBar');
+    const saveInfoName      = document.getElementById('saveInfoName');
+    const saveInfoDate      = document.getElementById('saveInfoDate');
+    const toast             = document.getElementById('toast');
+    const toastMsg          = document.getElementById('toastMsg');
+
+    // ─── localStorage ─────────────────────────────────────────
+    function saveToStorage(data, fileName) {
+      try {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify({
+          data:    data,
+          fileName: fileName,
+          savedAt: new Date().toISOString()
+        }));
+      } catch (e) {
+        // 용량 초과 등 — 조용히 무시
+        console.warn('localStorage 저장 실패:', e);
+      }
+    }
+
+    function loadFromStorage() {
+      try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    function clearStorage() {
+      localStorage.removeItem(STORAGE_KEY);
+    }
+
+    // 날짜 포맷: "2026-04-21 10:30 저장"
+    function formatSavedAt(isoString) {
+      const d = new Date(isoString);
+      const yy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mi = String(d.getMinutes()).padStart(2, '0');
+      return `${yy}-${mm}-${dd} ${hh}:${mi} 저장`;
+    }
+
+    // ─── Toast ────────────────────────────────────────────────
+    let toastTimer = null;
+    function showToast(msg) {
+      toastMsg.textContent = msg;
+      toast.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => toast.classList.remove('show'), 2500);
+    }
+
+    // ─── 저장 정보 UI 업데이트 ────────────────────────────────
+    function updateSaveInfoBar(fileName, savedAt) {
+      saveInfoName.textContent = fileName || '—';
+      saveInfoDate.textContent = savedAt ? formatSavedAt(savedAt) : '—';
+      saveInfoBar.style.display = 'flex';
+    }
+
+    function hideSaveInfoBar() {
+      saveInfoBar.style.display = 'none';
+    }
+
+    // ─── 업로드 화면 캐시 힌트 ───────────────────────────────
+    function checkAndShowCachedHint() {
+      const saved = loadFromStorage();
+      if (saved && saved.data && saved.data.length > 0) {
+        cachedFileName.textContent = saved.fileName || '저장된 파일';
+        cachedFileDate.textContent = formatSavedAt(saved.savedAt);
+        cachedHint.style.display = 'flex';
+      } else {
+        cachedHint.style.display = 'none';
+      }
+    }
+
+    function loadCachedData() {
+      const saved = loadFromStorage();
+      if (!saved || !saved.data) return;
+      globalData = saved.data;
+      renderCalendar();
+      updateSaveInfoBar(saved.fileName, saved.savedAt);
+    }
+
+    // ─── Drag and Drop ───────────────────────────────────────
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => {
+      dropZone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); }, false);
+    });
+    ['dragenter', 'dragover'].forEach(ev => {
+      dropZone.addEventListener(ev, () => dropZone.classList.add('dragover'), false);
+    });
+    ['dragleave', 'drop'].forEach(ev => {
+      dropZone.addEventListener(ev, () => dropZone.classList.remove('dragover'), false);
+    });
+    dropZone.addEventListener('drop', e => {
+      const files = e.dataTransfer.files;
+      if (files.length) handleFile(files[0]);
+    });
+    dropZone.addEventListener('click', () => fileInput.click());
+    fileInput.addEventListener('change', e => {
+      if (e.target.files.length) handleFile(e.target.files[0]);
+    });
+
+    // ─── App Control ─────────────────────────────────────────
+    function showDashboard() {
+      dropzoneContainer.style.display = 'none';
+      dashboardWrapper.classList.remove('fade-in');
+      dashboardWrapper.style.display = 'block';
+      void dashboardWrapper.offsetWidth; // reflow → 애니메이션 재시작
+      dashboardWrapper.classList.add('fade-in');
+    }
+
+    function resetApp() {
+      // localStorage는 유지 — 다음 접속 시 자동 로드 가능하도록
+      fileInput.value = '';
+      globalData = [];
+      dashboardWrapper.classList.remove('fade-in');
+      dashboardWrapper.style.display = 'none';
+      dropzoneContainer.style.display = 'block';
+      calendarGrid.innerHTML = '';
+      managerLegend.innerHTML = '';
+      monthCount.textContent = '0';
+      hideSaveInfoBar();
+      currentMonth = new Date().getMonth();
+      checkAndShowCachedHint(); // 캐시 힌트 다시 표시
+    }
+
+    function handleFile(file) {
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        alert("CSV 파일만 업로드 가능합니다.");
+        return;
+      }
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: results => {
+          globalData = results.data;
+          saveToStorage(globalData, file.name);   // ← 자동 저장
+          renderCalendar();
+          updateSaveInfoBar(file.name, new Date().toISOString());
+          showToast(`저장 완료 · ${file.name}`);
+        },
+        error: err => alert('CSV 파싱 에러: ' + err.message)
+      });
+    }
+
+    // ─── Date Parsing ─────────────────────────────────────────
+    // 연도 해석 규칙:
+    //   연도 미기재 (예: "12/31", "1/15")      → TARGET_YEAR(2026) 강제 적용
+    //   연도 명시 + 2026년 (예: "26/12/31")   → 포함
+    //   연도 명시 + 2026년 아님 (예: "25/12/31") → 제외 (과거/미래 날짜)
+    function parseShippingDates(dateString) {
+      const regex = /(?:(\d{2,4})[\/\-\.])?\s*(\d{1,2})\s*[\/\-\.]\s*(\d{1,2})/g;
+      const dates = [];
+      let match;
+      while ((match = regex.exec(dateString)) !== null) {
+        let year = TARGET_YEAR; // 기본값: 연도 미기재 시 2026 강제
+
+        // 연도가 명시된 경우 → 실제 연도를 확인
+        if (match[1] !== undefined) {
+          const rawYear = parseInt(match[1], 10);
+          year = rawYear < 100 ? 2000 + rawYear : rawYear; // 2자리(25→2025) or 4자리(2025)
+
+          // 2026년이 아니면 이 날짜는 건너뜀
+          if (year !== TARGET_YEAR) continue;
+        }
+
+        const month = parseInt(match[2], 10);
+        const day   = parseInt(match[3], 10);
+
+        if (!isNaN(month) && !isNaN(day) && month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+          dates.push(new Date(year, month - 1, day));
+        }
+      }
+      return dates;
+    }
+
+    // ─── Month Navigation ────────────────────────────────────
+    function changeMonth(delta) {
+      if (globalData.length === 0) return;
+      currentMonth = Math.max(0, Math.min(11, currentMonth + delta));
+      renderCalendar();
+    }
+
+    function updateNavButtons() {
+      prevMonthBtn.disabled = (currentMonth === 0);
+      nextMonthBtn.disabled = (currentMonth === 11);
+    }
+
+    // ─── Calendar Renderer ───────────────────────────────────
+    function renderCalendar() {
+      showDashboard();
+      monthDisplay.textContent = `${TARGET_YEAR}년 ${currentMonth + 1}월`;
+      updateNavButtons();
+
+      const firstDayOfMonth = new Date(TARGET_YEAR, currentMonth, 1).getDay();
+      const daysInMonth     = new Date(TARGET_YEAR, currentMonth + 1, 0).getDate();
+      const today           = new Date();
+
+      const monthSchedule = {};
+      for (let i = 1; i <= daysInMonth; i++) monthSchedule[i] = [];
+
+      globalData.forEach(row => {
+        const po          = row['PO#'];
+        const endUser     = row['End User'];
+        const manager     = row['담당자'];
+        const shipDateRaw = row['선적일'];
+        if (!shipDateRaw || !po) return;
+
+        parseShippingDates(shipDateRaw).forEach(parsedDate => {
+          if (parsedDate.getFullYear() === TARGET_YEAR && parsedDate.getMonth() === currentMonth) {
+            const day = parsedDate.getDate();
+            if (monthSchedule[day]) {
+              monthSchedule[day].push({
+                po:      po.trim(),
+                endUser: endUser ? endUser.trim() : 'N/A',
+                manager: manager ? manager.trim() : '',
+                raw:     shipDateRaw
+              });
+            }
+          }
+        });
+      });
+
+      const totalCount = Object.values(monthSchedule).reduce((sum, arr) => sum + arr.length, 0);
+      monthCount.textContent = totalCount;
+      renderManagerLegend(monthSchedule);
+
+      let html = '';
+
+      WEEKS.forEach(w => {
+        html += `<div class="calendar-header-cell">${w}</div>`;
+      });
+
+      for (let i = 0; i < firstDayOfMonth; i++) {
+        html += `<div class="calendar-cell empty"></div>`;
+      }
+
+      for (let i = 1; i <= daysInMonth; i++) {
+        const dateObj    = new Date(TARGET_YEAR, currentMonth, i);
+        const dayOfWeek  = dateObj.getDay();
+        const isToday    = (today.getFullYear() === TARGET_YEAR && today.getMonth() === currentMonth && today.getDate() === i);
+        const shipments  = monthSchedule[i];
+
+        const sundayClass   = dayOfWeek === 0 ? ' sunday'   : '';
+        const saturdayClass = dayOfWeek === 6 ? ' saturday' : '';
+        const todayClass    = isToday ? ' today' : '';
+
+        const badge      = shipments.length > 0 ? `<span class="count-badge">${shipments.length}</span>` : '';
+        const todayBadge = isToday ? `<span class="today-badge">오늘</span>` : '';
+
+        let shipmentsHtml = '';
+        shipments.forEach((s, idx) => {
+          const color = getManagerColor(s.manager);
+          const endUserDisplay = s.manager ? `${s.endUser} / ${s.manager}` : s.endUser;
+          shipmentsHtml += `
+            <div class="shipment-item" style="border-left-color:${color};animation-delay:${idx * 0.03}s" title="${s.raw}">
+              <div class="ship-po">${s.po}</div>
+              <div class="ship-enduser">
+                <svg width="8" height="8" viewBox="0 0 24 24" fill="${color}" style="margin-right:6px;flex-shrink:0;margin-top:4px;"><circle cx="12" cy="12" r="10"/></svg>
+                <span style="line-height:1.2;">${endUserDisplay}</span>
+              </div>
+            </div>`;
+        });
+
+        html += `
+          <div class="calendar-cell${todayClass}${sundayClass}${saturdayClass}">
+            <div class="cell-date">
+              <span class="cell-date-num">${i}</span>
+              <span class="cell-date-meta">${todayBadge}${badge}</span>
+            </div>
+            <div class="cell-content">${shipmentsHtml}</div>
+          </div>`;
+      }
+
+      calendarGrid.innerHTML = html;
+    }
+
+    // ─── Manager Legend ──────────────────────────────────────
+    function renderManagerLegend(schedule) {
+      const seen = new Set();
+      Object.values(schedule).forEach(arr => arr.forEach(s => { if (s.manager) seen.add(s.manager.trim()); }));
+
+      if (seen.size === 0) { managerLegend.innerHTML = ''; return; }
+
+      let html = '';
+      seen.forEach(mgr => {
+        const color = getManagerColor(mgr);
+        html += `<span class="legend-item"><span class="legend-dot" style="background:${color}"></span>${mgr}</span>`;
+      });
+      managerLegend.innerHTML = html;
+    }
+
+    // ─── 페이지 로드: 자동 복원 ──────────────────────────────
+    (function init() {
+      const saved = loadFromStorage();
+      if (saved && saved.data && saved.data.length > 0) {
+        // 저장된 데이터가 있으면 바로 대시보드 오픈
+        globalData = saved.data;
+        renderCalendar();
+        updateSaveInfoBar(saved.fileName, saved.savedAt);
+      } else {
+        // 없으면 업로드 화면 유지 (기본값)
+        checkAndShowCachedHint();
+      }
+    })();
+  </script>
+</body>
+</html>
