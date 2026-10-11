@@ -612,6 +612,16 @@
       white-space: nowrap;
     }
     .delay-tag.removed { background: #64748b; }
+    .delay-tag.overdue { background: #dc2626; }
+
+    .shipment-item.flagged.overdue {
+      background: #fef2f2;
+      border-color: #fca5a5;
+      box-shadow: 0 0 0 1px #fca5a5;
+    }
+    .shipment-item.flagged.overdue .flag-chip {
+      color: #dc2626;
+    }
 
     .watch-jump {
       background: none;
@@ -828,7 +838,7 @@
     <span id="toastMsg">저장 완료</span>
   </div>
 
-  <div class="version-label">v1.5.0</div>
+  <div class="version-label">v1.6.0</div>
 
   <script>
     // ─── Constants ────────────────────────────────────────────
@@ -837,6 +847,9 @@
     const STORAGE_KEY    = 'shipDashboard_v1'; // localStorage 키
     const PREV_STORAGE_KEY = 'shipDashboard_prev_v1'; // v1.5.0 비교 기준(직전) 스냅샷
     const WATCH_LOOKBACK_DAYS = 14; // 이번 주 시작 기준 몇 일 전까지의 '이전 선적일'을 감시할지
+    const OVERDUE_DAYS        = 7;  // v1.6.0: 선적 후 7일 경과 시 미입고 경고
+    const OVERDUE_EXCLUDE_STATUS = ['오더 클로징', '입고완료'];
+    const OVERDUE_EXCLUDE_TYPE   = ['재고납품', '수리'];
 
     const MANAGER_COLOR_MAP = {
       // ── ENG 부서 ──────────────────────────────
@@ -1225,12 +1238,79 @@
       return results;
     }
 
+    /**
+     * v1.6.0 미입고 지연 감지 (현재 파일 한 장만으로 판정 — 비교 기준 불필요)
+     *  - 선적일(2026) 중 가장 이른 날짜가 오늘보다 OVERDUE_DAYS일 이상 지남
+     *  - 입고일이 완전히 비어 있음 (납품일이 있으면 이미 전달된 것으로 보고 제외)
+     *  - 상태가 '오더 클로징' / '입고완료'이면 제외
+     *  - 발주 유형이 '재고납품' / '수리'이면 제외 (입고 절차가 없는 건)
+     *  - 분할 선적은 입고일이 하나라도 있으면 정상으로 봄 (v1.6.0 정책)
+     */
+    function isBlank(v) {
+      return !v || !String(v).replace(/[\s,.\-\/"]/g, '');
+    }
+
+    function detectOverdueShipments(rows, today = new Date()) {
+      const base = new Date(today); base.setHours(0, 0, 0, 0);
+      const results = [];
+      const seen = new Set();
+
+      rows.forEach(r => {
+        const po = (r['PO#'] || '').trim();
+        if (!po) return;
+        if (!isBlank(r['입고일']) || !isBlank(r['납품일'])) return;
+        const status = (r['상태'] || '').trim();
+        if (OVERDUE_EXCLUDE_STATUS.includes(status)) return;
+        const type = (r['발주 유형'] || '').trim();
+        if (OVERDUE_EXCLUDE_TYPE.includes(type)) return;
+
+        const dates = parseShippingDates(r['선적일'] || '').sort((a, b) => a - b);
+        if (dates.length === 0) return;
+        const shipDate = dates[0];
+        const days = Math.round((base - shipDate) / 86400000);
+        if (days < OVERDUE_DAYS) return;
+
+        const key = rowKey(r);
+        if (!key || seen.has(key)) return;
+        seen.add(key);
+
+        results.push({
+          type: 'overdue',
+          key,
+          dept:    r['_dept'] || 'ENG',
+          po,
+          endUser: (r['End User'] || '').trim() || 'N/A',
+          manager: (r['담당자'] || '').trim(),
+          maker:   (r['MAKER'] || '').trim(),
+          model:   (r['Model No'] || '').trim(),
+          status,
+          shipDate,
+          overdueDays: days,
+          currRaw: (r['선적일'] || '').trim(),
+        });
+      });
+
+      // 오래 방치된 순
+      results.sort((a, b) => b.overdueDays - a.overdueDays || a.po.localeCompare(b.po));
+      return results;
+    }
+
     function refreshDetection() {
       watchList  = [];
       flaggedMap = {};
-      if (prevSnapshot && prevSnapshot.data && globalData.length > 0) {
-        watchList = detectDelayedShipments(prevSnapshot.data, globalData);
-        watchList.forEach(w => { if (w.newDate) flaggedMap[`${w.key}|${formatDateYMD(w.newDate)}`] = w; });
+      if (globalData.length > 0) {
+        const overdue = detectOverdueShipments(globalData);
+        const delayed = (prevSnapshot && prevSnapshot.data)
+          ? detectDelayedShipments(prevSnapshot.data, globalData).map(w => ({ ...w, type: w.removed ? 'removed' : 'delay' }))
+          : [];
+        // 미입고(감감무소식)를 맨 위에, 그다음 연기/삭제
+        const overdueKeys = new Set(overdue.map(w => w.key));
+        watchList = overdue.concat(delayed.filter(w => !overdueKeys.has(w.key)));
+
+        watchList.forEach(w => {
+          const d = w.type === 'overdue' ? w.shipDate : w.newDate;
+          if (d) flaggedMap[`${w.key}|${formatDateYMD(d)}`] = w;
+        });
       }
       renderWatchPanel();
       updateCompareInfo();
@@ -1240,12 +1320,25 @@
       if (prevSnapshot && prevSnapshot.data) {
         compareInfo.innerHTML = `비교 기준: <strong>${escapeHtml(prevSnapshot.fileName || '이전 데이터')}</strong> · ${formatSavedAt(prevSnapshot.savedAt).replace(' 저장', '')}`;
       } else {
-        compareInfo.textContent = '비교 기준 없음 (다음 업로드부터 자동 비교)';
+        compareInfo.textContent = '비교 기준 없음 (연기 감지는 다음 업로드부터)';
       }
     }
 
     function escapeHtml(s) {
       return String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    // 항목 유형별 표시 정보
+    function watchTagHtml(w) {
+      if (w.type === 'overdue') return `<span class="delay-tag overdue">미입고 ${w.overdueDays}일</span>`;
+      if (w.type === 'removed') return `<span class="delay-tag removed">선적일 삭제됨</span>`;
+      return `<span class="delay-tag">연기 +${w.delayDays}일</span>`;
+    }
+
+    function watchTagText(w) {
+      if (w.type === 'overdue') return `미입고 ${w.overdueDays}일`;
+      if (w.type === 'removed') return '선적일 삭제됨';
+      return `연기 +${w.delayDays}일`;
     }
 
     // ─── v1.5.0 특별 관리대상 패널 ───────────────────────────
@@ -1254,57 +1347,64 @@
     }
 
     function renderWatchPanel() {
-      if (!prevSnapshot || !prevSnapshot.data) {
+      if (globalData.length === 0) {
         watchPanel.style.display = 'none';
         return;
       }
       watchPanel.style.display = 'block';
       watchCount.textContent = watchList.length;
 
-      const ws = getWeekStart(new Date());
-      const we = new Date(ws); we.setDate(ws.getDate() + 6);
-      watchDesc.textContent = `이전 데이터에서 지났거나 이번 주(${fmtMD(ws)}~${fmtMD(we)})였던 선적일이 뒤로 밀린 건`;
+      const nOver  = watchList.filter(w => w.type === 'overdue').length;
+      const nDelay = watchList.length - nOver;
+      watchDesc.textContent = `선적 후 ${OVERDUE_DAYS}일 이상 미입고 ${nOver}건 · 선적일 연기/삭제 ${nDelay}건`
+        + ((prevSnapshot && prevSnapshot.data) ? '' : ' (연기 감지는 비교 기준이 있어야 동작)');
 
       if (watchList.length === 0) {
-        watchBody.innerHTML = `<div class="watch-empty">현재 비교 기준 대비 선적일이 밀린 건이 없습니다.</div>`;
+        watchBody.innerHTML = `<div class="watch-empty">현재 특별 관리대상이 없습니다.</div>`;
         return;
       }
 
       let rows = '';
       watchList.forEach((w, i) => {
         const color = getManagerColor(w.manager);
-        const newCell = w.removed
-          ? `<span class="watch-date-new">—</span>`
-          : `<span class="watch-date-new">${fmtMD(w.newDate)} (${WEEKS[w.newDate.getDay()]})</span>`;
-        const tag = w.removed
-          ? `<span class="delay-tag removed">선적일 삭제됨</span>`
-          : `<span class="delay-tag">+${w.delayDays}일</span>`;
-        const jump = w.removed ? '' : `<button class="watch-jump" onclick="jumpToWatch(${i})">캘린더</button>`;
+        let dateCell, title;
+        if (w.type === 'overdue') {
+          dateCell = `<span class="watch-date-new">선적 ${fmtMD(w.shipDate)} (${WEEKS[w.shipDate.getDay()]})</span><span class="watch-arrow">·</span><span class="watch-date-old" style="text-decoration:none">입고일 없음</span>`;
+          title = `선적일 원문: ${escapeHtml(w.currRaw)}&#10;상태: ${escapeHtml(w.status || '-')}`;
+        } else {
+          const newCell = w.type === 'removed'
+            ? `<span class="watch-date-new">—</span>`
+            : `<span class="watch-date-new">${fmtMD(w.newDate)} (${WEEKS[w.newDate.getDay()]})</span>`;
+          dateCell = `<span class="watch-date-old">${fmtMD(w.prevDate)}</span><span class="watch-arrow">→</span>${newCell}`;
+          title = `이전 원문: ${escapeHtml(w.prevRaw)}&#10;현재 원문: ${escapeHtml(w.currRaw || '(빈칸)')}`;
+        }
+        const jump = w.type === 'removed' ? '' : `<button class="watch-jump" onclick="jumpToWatch(${i})">캘린더</button>`;
         rows += `
-          <tr title="이전 원문: ${escapeHtml(w.prevRaw)}&#10;현재 원문: ${escapeHtml(w.currRaw || '(빈칸)')}">
+          <tr title="${title}">
             <td class="watch-po">${escapeHtml(w.po)}</td>
             <td>${escapeHtml(w.endUser)}</td>
             <td><span class="watch-mgr"><svg width="8" height="8" viewBox="0 0 24 24" fill="${color}"><circle cx="12" cy="12" r="10"/></svg>${escapeHtml(w.manager || '-')}</span></td>
             <td>${escapeHtml(w.model)}</td>
-            <td><span class="watch-date-old">${fmtMD(w.prevDate)}</span><span class="watch-arrow">→</span>${newCell}</td>
-            <td>${tag}</td>
+            <td>${dateCell}</td>
+            <td>${watchTagHtml(w)}</td>
             <td>${jump}</td>
           </tr>`;
       });
 
       watchBody.innerHTML = `
         <table class="watch-table">
-          <thead><tr><th>PO#</th><th>End User</th><th>담당자</th><th>Model No</th><th>이전 → 현재 선적일</th><th>변동</th><th></th></tr></thead>
+          <thead><tr><th>PO#</th><th>End User</th><th>담당자</th><th>Model No</th><th>선적일</th><th>구분</th><th></th></tr></thead>
           <tbody>${rows}</tbody>
         </table>`;
     }
 
     function jumpToWatch(idx) {
       const w = watchList[idx];
-      if (!w || !w.newDate) return;
-      currentMonth = w.newDate.getMonth();
+      const targetDate = w ? (w.type === 'overdue' ? w.shipDate : w.newDate) : null;
+      if (!targetDate) return;
+      currentMonth = targetDate.getMonth();
       renderCalendar();
-      const cell = calendarGrid.querySelector(`[data-day="${w.newDate.getDate()}"]`);
+      const cell = calendarGrid.querySelector(`[data-day="${targetDate.getDate()}"]`);
       if (cell) {
         cell.scrollIntoView({ behavior: 'smooth', block: 'center' });
         cell.classList.remove('pulse'); void cell.offsetWidth; cell.classList.add('pulse');
@@ -1405,25 +1505,28 @@
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
-      // v1.5.0: 특별관리 시트
+      // v1.6.0: 특별관리 시트 (미입고 지연 + 선적일 연기/삭제)
       if (watchList.length > 0) {
-        const watchRows = watchList.map(w => ({
-          '부서':          w.dept,
-          'PO#':           w.po,
-          'End User':      w.endUser,
-          '담당자':        w.manager,
-          'MAKER':         w.maker,
-          'Model No':      w.model,
-          '이전 선적일':   formatDateYMD(w.prevDate),
-          '현재 선적일':   w.newDate ? formatDateYMD(w.newDate) : '',
-          '변동':          w.removed ? '선적일 삭제됨' : `+${w.delayDays}일`,
-          '이전 원문':     w.prevRaw,
-          '현재 원문':     w.currRaw
-        }));
+        const watchRows = watchList.map(w => {
+          const isOverdue = w.type === 'overdue';
+          return {
+            '부서':          w.dept,
+            'PO#':           w.po,
+            'End User':      w.endUser,
+            '담당자':        w.manager,
+            'MAKER':         w.maker,
+            'Model No':      w.model,
+            '선적일':        formatDateYMD(isOverdue ? w.shipDate : w.prevDate),
+            '현재/변경일':   isOverdue ? '입고일 없음' : (w.newDate ? formatDateYMD(w.newDate) : '삭제됨'),
+            '구분':          watchTagText(w),
+            '상태':          w.status || '',
+            '선적일 원문':   w.currRaw || w.prevRaw || ''
+          };
+        });
         const ws2 = XLSX.utils.json_to_sheet(watchRows);
         ws2['!cols'] = [
           { wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 7 }, { wch: 10 }, { wch: 22 },
-          { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 22 }, { wch: 22 }
+          { wch: 12 }, { wch: 14 }, { wch: 14 }, { wch: 14 }, { wch: 22 }
         ];
         XLSX.utils.book_append_sheet(wb, ws2, '특별관리');
       }
@@ -1549,17 +1652,28 @@
           const color = getManagerColor(s.manager);
           const endUserDisplay = s.manager ? `${s.endUser} / ${s.manager}` : s.endUser;
           const f = s.flag;
-          const title = f
-            ? `[특별 관리] 이전 선적일 ${fmtMD(f.prevDate)} → 현재 ${fmtMD(f.newDate)} (+${f.delayDays}일)&#10;원문: ${escapeHtml(s.raw)}`
-            : escapeHtml(s.raw);
-          const chip = f
-            ? `<div class="flag-chip">
+          let title = escapeHtml(s.raw);
+          let chip = '';
+          if (f) {
+            let chipText = '';
+            if (f.type === 'overdue') {
+              title = `[특별 관리: 미입고] 선적 후 ${f.overdueDays}일 경과 (입고일 없음)&#10;선적일: ${fmtMD(f.shipDate)}&#10;상태: ${escapeHtml(f.status || '-')}&#10;원문: ${escapeHtml(s.raw)}`;
+              chipText = `미입고 ${f.overdueDays}일 경과`;
+            } else if (f.type === 'removed') {
+              title = `[특별 관리: 연기/삭제] 이전 선적일 ${fmtMD(f.prevDate)} → 현재 삭제됨&#10;원문: ${escapeHtml(s.raw)}`;
+              chipText = `선적일 삭제됨`;
+            } else {
+              title = `[특별 관리: 연기] 이전 선적일 ${fmtMD(f.prevDate)} → 현재 ${fmtMD(f.newDate)} (+${f.delayDays}일)&#10;원문: ${escapeHtml(s.raw)}`;
+              chipText = `${fmtMD(f.prevDate)}에서 +${f.delayDays}일 연기`;
+            }
+            chip = `<div class="flag-chip">
                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-                 ${fmtMD(f.prevDate)}에서 +${f.delayDays}일 연기
-               </div>`
-            : '';
+                 ${chipText}
+               </div>`;
+          }
+          const isOverdue = f && f.type === 'overdue';
           shipmentsHtml += `
-            <div class="shipment-item${f ? ' flagged' : ''}" style="border-left-color:${color};animation-delay:${idx * 0.03}s" title="${title}">
+            <div class="shipment-item${f ? ' flagged' : ''}${isOverdue ? ' overdue' : ''}" style="border-left-color:${color};animation-delay:${idx * 0.03}s" title="${title}">
               <div class="ship-po">${escapeHtml(s.po)}</div>
               <div class="ship-enduser">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="${color}" style="margin-right:6px;flex-shrink:0;margin-top:4px;"><circle cx="12" cy="12" r="10"/></svg>
