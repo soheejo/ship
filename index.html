@@ -476,6 +476,178 @@
       margin-top: 2px;
     }
 
+    /* ── v1.5.0 특별 관리대상 ── */
+    :root {
+      --warn: #ea580c;
+      --warn-soft: #fff7ed;
+      --warn-border: #fdba74;
+    }
+
+    .compare-info { color: var(--text-muted); }
+    .compare-info strong { color: var(--warn); font-weight: 700; }
+
+    .compare-btn {
+      margin-left: auto;
+      background: transparent;
+      border: 1px solid var(--glass-border);
+      border-radius: 10px;
+      padding: 4px 12px;
+      font-size: 0.8rem;
+      font-family: inherit;
+      font-weight: 600;
+      color: var(--primary);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.2s;
+    }
+    .compare-btn:hover { background: var(--primary); color: #fff; }
+
+    .watch-panel {
+      background: var(--warn-soft);
+      border: 1px solid var(--warn-border);
+      border-left: 5px solid var(--warn);
+      border-radius: 16px;
+      margin-bottom: 20px;
+      overflow: hidden;
+    }
+
+    .watch-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 22px;
+      cursor: pointer;
+      user-select: none;
+    }
+
+    .watch-title {
+      font-size: 1.05rem;
+      font-weight: 800;
+      color: var(--warn);
+    }
+
+    .watch-count {
+      background: var(--warn);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      padding: 2px 10px;
+      border-radius: 12px;
+    }
+
+    .watch-desc {
+      font-size: 0.82rem;
+      color: var(--text-muted);
+    }
+
+    .watch-toggle {
+      margin-left: auto;
+      color: var(--warn);
+      transition: transform 0.2s;
+    }
+    .watch-panel.collapsed .watch-toggle { transform: rotate(-90deg); }
+    .watch-panel.collapsed .watch-body { display: none; }
+
+    .watch-body {
+      padding: 0 22px 18px;
+      max-height: 360px;
+      overflow-y: auto;
+    }
+
+    .watch-empty {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      padding: 4px 0 2px;
+    }
+
+    .watch-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      background: #fff;
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .watch-table th {
+      text-align: left;
+      background: #ffedd5;
+      color: #9a3412;
+      font-weight: 700;
+      padding: 9px 12px;
+      white-space: nowrap;
+      position: sticky;
+      top: 0;
+    }
+
+    .watch-table td {
+      padding: 9px 12px;
+      border-top: 1px solid #fde7d3;
+      vertical-align: middle;
+    }
+
+    .watch-table tr:hover td { background: #fffaf5; }
+
+    .watch-po { font-weight: 800; color: var(--primary-hover); }
+
+    .watch-mgr {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-weight: 600;
+    }
+
+    .watch-date-old { color: var(--text-muted); text-decoration: line-through; }
+    .watch-arrow { color: var(--warn); margin: 0 6px; font-weight: 700; }
+    .watch-date-new { font-weight: 700; color: var(--text-main); }
+
+    .delay-tag {
+      display: inline-block;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 8px;
+      background: var(--warn);
+      color: #fff;
+      white-space: nowrap;
+    }
+    .delay-tag.removed { background: #64748b; }
+
+    .watch-jump {
+      background: none;
+      border: none;
+      color: var(--primary);
+      font-family: inherit;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      text-decoration: underline;
+    }
+
+    /* 캘린더 내 특별관리 아이템 */
+    .shipment-item.flagged {
+      background: var(--warn-soft);
+      border-color: var(--warn-border);
+      box-shadow: 0 0 0 1px var(--warn-border);
+    }
+
+    .flag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--warn);
+      margin-top: 5px;
+    }
+
+    .calendar-cell.pulse { animation: pulse 1.2s ease-out 2; }
+
+    @keyframes pulse {
+      0%   { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.5); }
+      100% { box-shadow: 0 0 0 14px rgba(234, 88, 12, 0); }
+    }
+
     /* ── Toast 알림 ── */
     .toast {
       position: fixed;
@@ -594,6 +766,28 @@
         <span class="save-info-filename" id="saveInfoName">—</span>
         <span class="save-info-divider">·</span>
         <span id="saveInfoDate">—</span>
+        <span class="save-info-divider">|</span>
+        <span class="compare-info" id="compareInfo">비교 기준 없음</span>
+        <button class="compare-btn" onclick="compareInput.click()" title="지난주 CSV를 직접 골라 비교 기준으로 지정 (ENG + T&M 동시 선택 가능)">비교 파일 선택</button>
+        <input type="file" id="compareInput" accept=".csv" multiple style="display:none" />
+      </div>
+
+      <!-- v1.5.0 특별 관리대상 패널 -->
+      <div class="watch-panel" id="watchPanel" style="display:none">
+        <div class="watch-header" onclick="toggleWatchPanel()">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--warn)" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path>
+            <line x1="12" y1="9" x2="12" y2="13"></line>
+            <line x1="12" y1="17" x2="12.01" y2="17"></line>
+          </svg>
+          <span class="watch-title">특별 관리대상</span>
+          <span class="watch-count" id="watchCount">0</span>
+          <span class="watch-desc" id="watchDesc">지난 데이터 대비 선적일이 뒤로 밀린 건</span>
+          <svg class="watch-toggle" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+        <div class="watch-body" id="watchBody"></div>
       </div>
 
       <div class="controls-row">
@@ -634,13 +828,15 @@
     <span id="toastMsg">저장 완료</span>
   </div>
 
-  <div class="version-label">v1.4.0</div>
+  <div class="version-label">v1.5.0</div>
 
   <script>
     // ─── Constants ────────────────────────────────────────────
     const TARGET_YEAR    = 2026;
     const WEEKS          = ['일', '월', '화', '수', '목', '금', '토'];
     const STORAGE_KEY    = 'shipDashboard_v1'; // localStorage 키
+    const PREV_STORAGE_KEY = 'shipDashboard_prev_v1'; // v1.5.0 비교 기준(직전) 스냅샷
+    const WATCH_LOOKBACK_DAYS = 14; // 이번 주 시작 기준 몇 일 전까지의 '이전 선적일'을 감시할지
 
     const MANAGER_COLOR_MAP = {
       // ── ENG 부서 ──────────────────────────────
@@ -691,6 +887,12 @@
     const saveInfoDate      = document.getElementById('saveInfoDate');
     const toast             = document.getElementById('toast');
     const toastMsg          = document.getElementById('toastMsg');
+    const compareInput      = document.getElementById('compareInput');
+    const compareInfo       = document.getElementById('compareInfo');
+    const watchPanel        = document.getElementById('watchPanel');
+    const watchCount        = document.getElementById('watchCount');
+    const watchDesc         = document.getElementById('watchDesc');
+    const watchBody         = document.getElementById('watchBody');
 
     // ─── localStorage ─────────────────────────────────────────
     function saveToStorage(data, fileName) {
@@ -767,6 +969,7 @@
       const saved = loadFromStorage();
       if (!saved || !saved.data) return;
       globalData = saved.data;
+      refreshDetection();
       renderCalendar();
       updateSaveInfoBar(saved.fileName, saved.savedAt);
     }
@@ -819,7 +1022,8 @@
       return /T&M|TM/i.test(fileName) ? 'T&M' : 'ENG';
     }
 
-    function handleFiles(fileList) {
+    // 여러 CSV를 파싱·병합 후 callback(mergedData, combinedName)
+    function parseCsvFiles(fileList, callback) {
       const csvFiles = Array.from(fileList).filter(f => f.name.toLowerCase().endsWith('.csv'));
       if (csvFiles.length === 0) {
         alert("CSV 파일만 업로드 가능합니다.");
@@ -847,20 +1051,264 @@
             loadedCount++;
 
             if (loadedCount === csvFiles.length) {
-              globalData = mergedData;
-              const combinedName = fileNames.join(' + ');
-              saveToStorage(globalData, combinedName);
-              renderCalendar();
-              updateSaveInfoBar(combinedName, new Date().toISOString());
-              const label = csvFiles.length > 1
-                ? `${csvFiles.length}개 파일 통합 완료`
-                : '저장 완료';
-              showToast(`${label} · ${globalData.length}건`);
+              callback(mergedData, fileNames.join(' + '), csvFiles.length);
             }
           },
           error: err => alert(`파싱 에러 (${file.name}): ${err.message}`)
         });
       });
+    }
+
+    function handleFiles(fileList) {
+      parseCsvFiles(fileList, (mergedData, combinedName, fileCount) => {
+        // v1.5.0: 기존 저장 데이터를 '비교 기준'으로 이동
+        //  - 같은 날 다시 올린 경우(수정 재업로드)는 비교 기준을 유지 → 같은 주 데이터끼리 비교되는 것 방지
+        const existing = loadFromStorage();
+        let rotated = false;
+        if (existing && existing.data && existing.data.length > 0 && !isSameDay(existing.savedAt, new Date().toISOString())) {
+          savePrevSnapshot(existing.data, existing.fileName, existing.savedAt);
+          rotated = true;
+        }
+
+        globalData = mergedData;
+        saveToStorage(globalData, combinedName);
+        refreshDetection();
+        renderCalendar();
+        updateSaveInfoBar(combinedName, new Date().toISOString());
+        const label = fileCount > 1 ? `${fileCount}개 파일 통합 완료` : '저장 완료';
+        showToast(`${label} · ${globalData.length}건${rotated ? ' · 이전 데이터를 비교 기준으로 보관' : ''}`);
+      });
+    }
+
+    // ─── v1.5.0 비교 기준 스냅샷 ─────────────────────────────
+    // 용량 절약: 비교에 필요한 컬럼만 저장
+    const SNAPSHOT_FIELDS = ['*ID', 'PO#', 'Model No', 'End User', '담당자', 'MAKER', '선적일', '_dept'];
+
+    function slimRows(rows) {
+      return rows.map(r => {
+        const o = {};
+        SNAPSHOT_FIELDS.forEach(k => { if (r[k] !== undefined && r[k] !== '') o[k] = r[k]; });
+        return o;
+      });
+    }
+
+    let prevSnapshot = null;   // { data, fileName, savedAt }
+    let watchList    = [];     // 감지 결과
+    let flaggedMap   = {};     // key|YYYY-MM-DD → watch item (캘린더 표시용)
+
+    function savePrevSnapshot(data, fileName, savedAt) {
+      prevSnapshot = { data: slimRows(data), fileName, savedAt };
+      try {
+        localStorage.setItem(PREV_STORAGE_KEY, JSON.stringify(prevSnapshot));
+      } catch (e) {
+        console.warn('비교 기준 저장 실패:', e);
+      }
+    }
+
+    function loadPrevSnapshot() {
+      try {
+        const raw = localStorage.getItem(PREV_STORAGE_KEY);
+        prevSnapshot = raw ? JSON.parse(raw) : null;
+      } catch (e) {
+        prevSnapshot = null;
+      }
+    }
+
+    function isSameDay(isoA, isoB) {
+      if (!isoA || !isoB) return false;
+      return formatDateYMD(new Date(isoA)) === formatDateYMD(new Date(isoB));
+    }
+
+    // 수동 비교 파일 지정
+    compareInput.addEventListener('change', e => {
+      if (!e.target.files.length) return;
+      parseCsvFiles(e.target.files, (mergedData, combinedName) => {
+        // 파일 수정일을 기준일로 사용 (없으면 현재 시각)
+        const lm = Array.from(e.target.files).map(f => f.lastModified || 0);
+        const savedAt = new Date(Math.max(...lm) || Date.now()).toISOString();
+        savePrevSnapshot(mergedData, combinedName, savedAt);
+        compareInput.value = '';
+        refreshDetection();
+        renderCalendar();
+        showToast(`비교 기준 지정 완료 · 특별 관리대상 ${watchList.length}건`);
+      });
+    });
+
+    // 행 매칭 키: *ID(따옴표 제거) 우선, 없으면 PO# + Model No
+    function rowKey(row) {
+      const dept = row['_dept'] || 'ENG';
+      const id = (row['*ID'] || '').replace(/["'\s]/g, '');
+      if (id) return `${dept}|ID:${id}`;
+      const po = (row['PO#'] || '').trim();
+      const model = (row['Model No'] || '').trim();
+      return po ? `${dept}|PO:${po}|${model}` : null;
+    }
+
+    // 이번 주 월요일 00:00 (KST 로컬 기준)
+    function getWeekStart(base) {
+      const d = new Date(base);
+      d.setHours(0, 0, 0, 0);
+      const offset = (d.getDay() + 6) % 7; // 월=0 … 일=6
+      d.setDate(d.getDate() - offset);
+      return d;
+    }
+
+    function fmtMD(d) { return `${d.getMonth() + 1}/${d.getDate()}`; }
+
+    /**
+     * 판정 규칙 (v1.5.0):
+     *  1) 이전 스냅샷 선적일 P가 [이번 주 월요일 - LOOKBACK, 이번 주 일요일] 범위 → "지났거나 이번 주였던" 날짜
+     *  2) P가 현재 선적일 목록에 더 이상 없음
+     *  3) 현재 선적일 중 P보다 늦고 이번 주 월요일 이후인 날짜 C가 있음 → 지연(+N일)
+     *     현재 선적일이 아예 없으면 → "선적일 삭제됨"
+     */
+    function detectDelayedShipments(prevRows, currRows, today = new Date()) {
+      const weekStart = getWeekStart(today);
+      const weekEnd   = new Date(weekStart); weekEnd.setDate(weekStart.getDate() + 6);
+      const lookStart = new Date(weekStart); lookStart.setDate(weekStart.getDate() - WATCH_LOOKBACK_DAYS);
+
+      const currMap = {};
+      currRows.forEach(r => { const k = rowKey(r); if (k) currMap[k] = r; });
+
+      const results = [];
+      const seen = new Set();
+
+      prevRows.forEach(prev => {
+        const key = rowKey(prev);
+        if (!key || seen.has(key)) return;
+        const curr = currMap[key];
+        if (!curr) return; // 현재 파일에 없는 행(삭제/클로징)은 제외
+
+        const prevDates = parseShippingDates(prev['선적일'] || '');
+        const currDates = parseShippingDates(curr['선적일'] || '');
+        const currYMD   = new Set(currDates.map(formatDateYMD));
+
+        // 감시 범위 안에 있고, 현재 목록에서 사라진 이전 날짜
+        const moved = prevDates
+          .filter(p => p >= lookStart && p <= weekEnd && !currYMD.has(formatDateYMD(p)))
+          .sort((a, b) => a - b);
+        if (moved.length === 0) return;
+
+        const base = {
+          key,
+          dept:    curr['_dept'] || 'ENG',
+          po:      (curr['PO#'] || '').trim(),
+          endUser: (curr['End User'] || '').trim() || 'N/A',
+          manager: (curr['담당자'] || '').trim(),
+          maker:   (curr['MAKER'] || '').trim(),
+          model:   (curr['Model No'] || '').trim(),
+          prevRaw: (prev['선적일'] || '').trim(),
+          currRaw: (curr['선적일'] || '').trim(),
+        };
+
+        if (currDates.length === 0) {
+          results.push({ ...base, prevDate: moved[0], newDate: null, delayDays: null, removed: true });
+          seen.add(key);
+          return;
+        }
+
+        const p = moved[0];
+        const c = currDates
+          .filter(d => d > p && d >= weekStart)
+          .sort((a, b) => a - b)[0];
+        if (!c) return; // 앞당겨졌거나 지난 날짜로 정정된 경우는 제외
+
+        results.push({ ...base, prevDate: p, newDate: c, delayDays: Math.round((c - p) / 86400000), removed: false });
+        seen.add(key);
+      });
+
+      // 새 선적일 → PO# 순 (삭제 건은 맨 뒤)
+      results.sort((a, b) => {
+        if (a.removed !== b.removed) return a.removed ? 1 : -1;
+        return (a.newDate || 0) - (b.newDate || 0) || a.po.localeCompare(b.po);
+      });
+      return results;
+    }
+
+    function refreshDetection() {
+      watchList  = [];
+      flaggedMap = {};
+      if (prevSnapshot && prevSnapshot.data && globalData.length > 0) {
+        watchList = detectDelayedShipments(prevSnapshot.data, globalData);
+        watchList.forEach(w => { if (w.newDate) flaggedMap[`${w.key}|${formatDateYMD(w.newDate)}`] = w; });
+      }
+      renderWatchPanel();
+      updateCompareInfo();
+    }
+
+    function updateCompareInfo() {
+      if (prevSnapshot && prevSnapshot.data) {
+        compareInfo.innerHTML = `비교 기준: <strong>${escapeHtml(prevSnapshot.fileName || '이전 데이터')}</strong> · ${formatSavedAt(prevSnapshot.savedAt).replace(' 저장', '')}`;
+      } else {
+        compareInfo.textContent = '비교 기준 없음 (다음 업로드부터 자동 비교)';
+      }
+    }
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+    }
+
+    // ─── v1.5.0 특별 관리대상 패널 ───────────────────────────
+    function toggleWatchPanel() {
+      watchPanel.classList.toggle('collapsed');
+    }
+
+    function renderWatchPanel() {
+      if (!prevSnapshot || !prevSnapshot.data) {
+        watchPanel.style.display = 'none';
+        return;
+      }
+      watchPanel.style.display = 'block';
+      watchCount.textContent = watchList.length;
+
+      const ws = getWeekStart(new Date());
+      const we = new Date(ws); we.setDate(ws.getDate() + 6);
+      watchDesc.textContent = `이전 데이터에서 지났거나 이번 주(${fmtMD(ws)}~${fmtMD(we)})였던 선적일이 뒤로 밀린 건`;
+
+      if (watchList.length === 0) {
+        watchBody.innerHTML = `<div class="watch-empty">현재 비교 기준 대비 선적일이 밀린 건이 없습니다.</div>`;
+        return;
+      }
+
+      let rows = '';
+      watchList.forEach((w, i) => {
+        const color = getManagerColor(w.manager);
+        const newCell = w.removed
+          ? `<span class="watch-date-new">—</span>`
+          : `<span class="watch-date-new">${fmtMD(w.newDate)} (${WEEKS[w.newDate.getDay()]})</span>`;
+        const tag = w.removed
+          ? `<span class="delay-tag removed">선적일 삭제됨</span>`
+          : `<span class="delay-tag">+${w.delayDays}일</span>`;
+        const jump = w.removed ? '' : `<button class="watch-jump" onclick="jumpToWatch(${i})">캘린더</button>`;
+        rows += `
+          <tr title="이전 원문: ${escapeHtml(w.prevRaw)}&#10;현재 원문: ${escapeHtml(w.currRaw || '(빈칸)')}">
+            <td class="watch-po">${escapeHtml(w.po)}</td>
+            <td>${escapeHtml(w.endUser)}</td>
+            <td><span class="watch-mgr"><svg width="8" height="8" viewBox="0 0 24 24" fill="${color}"><circle cx="12" cy="12" r="10"/></svg>${escapeHtml(w.manager || '-')}</span></td>
+            <td>${escapeHtml(w.model)}</td>
+            <td><span class="watch-date-old">${fmtMD(w.prevDate)}</span><span class="watch-arrow">→</span>${newCell}</td>
+            <td>${tag}</td>
+            <td>${jump}</td>
+          </tr>`;
+      });
+
+      watchBody.innerHTML = `
+        <table class="watch-table">
+          <thead><tr><th>PO#</th><th>End User</th><th>담당자</th><th>Model No</th><th>이전 → 현재 선적일</th><th>변동</th><th></th></tr></thead>
+          <tbody>${rows}</tbody>
+        </table>`;
+    }
+
+    function jumpToWatch(idx) {
+      const w = watchList[idx];
+      if (!w || !w.newDate) return;
+      currentMonth = w.newDate.getMonth();
+      renderCalendar();
+      const cell = calendarGrid.querySelector(`[data-day="${w.newDate.getDate()}"]`);
+      if (cell) {
+        cell.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        cell.classList.remove('pulse'); void cell.offsetWidth; cell.classList.add('pulse');
+      }
     }
 
     // ─── xlsx 내보내기 ────────────────────────────────────────
@@ -957,9 +1405,32 @@
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, sheetName);
 
+      // v1.5.0: 특별관리 시트
+      if (watchList.length > 0) {
+        const watchRows = watchList.map(w => ({
+          '부서':          w.dept,
+          'PO#':           w.po,
+          'End User':      w.endUser,
+          '담당자':        w.manager,
+          'MAKER':         w.maker,
+          'Model No':      w.model,
+          '이전 선적일':   formatDateYMD(w.prevDate),
+          '현재 선적일':   w.newDate ? formatDateYMD(w.newDate) : '',
+          '변동':          w.removed ? '선적일 삭제됨' : `+${w.delayDays}일`,
+          '이전 원문':     w.prevRaw,
+          '현재 원문':     w.currRaw
+        }));
+        const ws2 = XLSX.utils.json_to_sheet(watchRows);
+        ws2['!cols'] = [
+          { wch: 6 }, { wch: 18 }, { wch: 22 }, { wch: 7 }, { wch: 10 }, { wch: 22 },
+          { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 22 }, { wch: 22 }
+        ];
+        XLSX.utils.book_append_sheet(wb, ws2, '특별관리');
+      }
+
       const fileName = `선적일정_${formatDateYMD(today)}.xlsx`;
       XLSX.writeFile(wb, fileName);
-      showToast(`다운로드 완료 · ${rows.length}건 (${sheetName})`);
+      showToast(`다운로드 완료 · ${rows.length}건 (${sheetName})${watchList.length ? ` · 특별관리 ${watchList.length}건` : ''}`);
     }
 
     // ─── Date Parsing ─────────────────────────────────────────
@@ -1029,11 +1500,14 @@
           if (parsedDate.getFullYear() === TARGET_YEAR && parsedDate.getMonth() === currentMonth) {
             const day = parsedDate.getDate();
             if (monthSchedule[day]) {
+              const key  = rowKey(row);
+              const flag = key ? flaggedMap[`${key}|${formatDateYMD(parsedDate)}`] : null;
               monthSchedule[day].push({
                 po:      po.trim(),
                 endUser: endUser ? endUser.trim() : 'N/A',
                 manager: manager ? manager.trim() : '',
-                raw:     shipDateRaw
+                raw:     shipDateRaw,
+                flag:    flag || null
               });
             }
           }
@@ -1060,6 +1534,9 @@
         const isToday    = (today.getFullYear() === TARGET_YEAR && today.getMonth() === currentMonth && today.getDate() === i);
         const shipments  = monthSchedule[i];
 
+        // 특별관리 건을 맨 위로
+        shipments.sort((a, b) => (b.flag ? 1 : 0) - (a.flag ? 1 : 0));
+
         const sundayClass   = dayOfWeek === 0 ? ' sunday'   : '';
         const saturdayClass = dayOfWeek === 6 ? ' saturday' : '';
         const todayClass    = isToday ? ' today' : '';
@@ -1071,18 +1548,29 @@
         shipments.forEach((s, idx) => {
           const color = getManagerColor(s.manager);
           const endUserDisplay = s.manager ? `${s.endUser} / ${s.manager}` : s.endUser;
+          const f = s.flag;
+          const title = f
+            ? `[특별 관리] 이전 선적일 ${fmtMD(f.prevDate)} → 현재 ${fmtMD(f.newDate)} (+${f.delayDays}일)&#10;원문: ${escapeHtml(s.raw)}`
+            : escapeHtml(s.raw);
+          const chip = f
+            ? `<div class="flag-chip">
+                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+                 ${fmtMD(f.prevDate)}에서 +${f.delayDays}일 연기
+               </div>`
+            : '';
           shipmentsHtml += `
-            <div class="shipment-item" style="border-left-color:${color};animation-delay:${idx * 0.03}s" title="${s.raw}">
-              <div class="ship-po">${s.po}</div>
+            <div class="shipment-item${f ? ' flagged' : ''}" style="border-left-color:${color};animation-delay:${idx * 0.03}s" title="${title}">
+              <div class="ship-po">${escapeHtml(s.po)}</div>
               <div class="ship-enduser">
                 <svg width="8" height="8" viewBox="0 0 24 24" fill="${color}" style="margin-right:6px;flex-shrink:0;margin-top:4px;"><circle cx="12" cy="12" r="10"/></svg>
-                <span style="line-height:1.2;">${endUserDisplay}</span>
+                <span style="line-height:1.2;">${escapeHtml(endUserDisplay)}</span>
               </div>
+              ${chip}
             </div>`;
         });
 
         html += `
-          <div class="calendar-cell${todayClass}${sundayClass}${saturdayClass}">
+          <div class="calendar-cell${todayClass}${sundayClass}${saturdayClass}" data-day="${i}">
             <div class="cell-date">
               <span class="cell-date-num">${i}</span>
               <span class="cell-date-meta">${todayBadge}${badge}</span>
@@ -1111,10 +1599,12 @@
 
     // ─── 페이지 로드: 자동 복원 ──────────────────────────────
     (function init() {
+      loadPrevSnapshot();
       const saved = loadFromStorage();
       if (saved && saved.data && saved.data.length > 0) {
         // 저장된 데이터가 있으면 바로 대시보드 오픈
         globalData = saved.data;
+        refreshDetection();
         renderCalendar();
         updateSaveInfoBar(saved.fileName, saved.savedAt);
       } else {
